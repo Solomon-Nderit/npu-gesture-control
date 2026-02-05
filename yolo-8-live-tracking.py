@@ -2,7 +2,7 @@ import cv2
 from ultralytics import YOLO
 
 # 1. Load the official Pose model
-model = YOLO('./hand-trained.pt')  # This will download automatically on first run
+model = YOLO('./models/hand-trained.pt')  # This will download automatically on first run
 
 # 2. Open Webcam
 cap = cv2.VideoCapture(0)
@@ -17,7 +17,7 @@ while cap.isOpened():
     results = model(frame, stream=True, verbose=False)
 
     for r in results:
-        # Visualize the skeleton on the frame
+        # Visualize the skeleton on the framec
         frame = r.plot()
         
         # 4. Extract Keypoints for Logic
