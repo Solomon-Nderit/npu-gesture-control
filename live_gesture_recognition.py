@@ -6,6 +6,9 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
 
+from action_taker import take_action
+
+
 BaseOptions = mp.tasks.BaseOptions
 GestureRecognizer = mp.tasks.vision.GestureRecognizer
 GestureRecognizerOptions = mp.tasks.vision.GestureRecognizerOptions
@@ -59,6 +62,7 @@ while True:
             mp_hands.HAND_CONNECTIONS,
             mp_drawing_styles.get_default_hand_landmarks_style(),
             mp_drawing_styles.get_default_hand_connections_style())
+        take_action(latest_result.gestures[0][0].category_name)
 
     
     cv2.imshow('Camera', frame)  # Display the frame with drawings
