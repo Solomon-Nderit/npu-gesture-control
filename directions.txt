@@ -1,0 +1,109 @@
+PROJECT: RYZEN AI GESTURE CONTROL (THE "CHIPS & CHICKEN" CONTROLLER)
+GOAL: Create a power-efficient, touchless interface for PC control using the Ryzen 8840U NPU.
+
+PHASE 1: THE LOGIC PROTOTYPE (CPU ONLY)
+---------------------------------------------------------
+Goal: Build a functional "Virtual Mouse" using standard tools. Ignore NPU for now.
+Est. Time: 1-3 Days
+
+Step 1.1: Basic Hand Tracking Script
+    Substep 1.1.1: Install MediaPipe and OpenCV (`pip install mediapipe opencv-python`).
+    Substep 1.1.2: Write a script that opens the webcam and tracks a hand.
+    Substep 1.1.3: Print the (x, y) coordinates of the Index Finger Tip (Landmark 8) to the console.
+    Substep 1.1.4: Print the (x, y) coordinates of the Thumb Tip (Landmark 4).
+
+Step 1.2: The "State Machine" (Logic Layer)
+    Substep 1.2.1: Define a "Passive Mode" (System ignores gestures) and "Active Mode" (System listens).
+    Substep 1.2.2: Create a "Trigger Gesture" (e.g., Open Palm for 2 seconds) to switch modes.
+    Substep 1.2.3: Add visual feedback (e.g., Draw a Green Circle on screen when Active, Red when Passive).
+
+Step 1.3: Cursor Control Implementation
+    Substep 1.3.1: Install `pyautogui` or `pynput`.
+    Substep 1.3.2: Map the Index Finger's Y-coordinate to the Mouse Scroll Wheel.
+    Substep 1.3.3: Map a specific gesture (e.g., "Pinch" - Distance between Index & Thumb < 20px) to a "Click" action.
+    Substep 1.3.4: Implement a "Smoothing Filter" (Moving Average) to stop the cursor from jittering.
+
+PHASE 2: MODEL PREPARATION (THE BRIDGE)
+---------------------------------------------------------
+Goal: Replace MediaPipe with a custom, NPU-compatible Neural Network.
+Est. Time: 2-4 Days
+
+Step 2.1: Model Selection
+    Substep 2.1.1: Download the `yolov8n-pose.pt` model (YOLOv8 Nano Pose) from Ultralytics.
+    Substep 2.1.2: (Optional but Recommended) Train this model on the "Hand Keypoints" dataset using Google Colab if the generic model fails to detect fingers reliably.
+
+Step 2.2: The "Static" ONNX Export
+    Substep 2.2.1: Create a dedicated Conda environment for export (`conda create -n export_env python=3.10`).
+    Substep 2.2.2: Install standard export tools (`pip install ultralytics onnx onnxruntime`).
+    Substep 2.2.3: Run the export command with NPU constraints:
+        `yolo export model=yolov8n-pose.pt format=onnx opset=12 imgsz=640 simplify=True`
+    Substep 2.2.4: Verify the output file `yolov8n-pose.onnx` exists and is ~12-15MB.
+
+Step 2.3: CPU Verification
+    Substep 2.3.1: Write a script to run this specific `.onnx` file using `onnxruntime` (CPU provider).
+    Substep 2.3.2: Confirm it outputs valid keypoints (even if slow) before moving to NPU.
+
+PHASE 3: THE NPU PORT (HARDWARE ENGINEERING)
+---------------------------------------------------------
+Goal: Force the model to run on the Ryzen AI NPU (IPU).
+Est. Time: 3-5 Days
+
+Step 3.1: NPU Environment Setup
+    Substep 3.1.1: Download the "Ryzen AI Software" zip from AMD.
+    Substep 3.1.2: Create the runtime environment (`conda create -n ryzen-ai python=3.10`).
+    Substep 3.1.3: Install the 3 specific `.whl` files from the zip:
+        1. `onnxruntime_vitisai`
+        2. `voe` (Vitis AI Engine)
+        3. `vai_q_onnx` (Quantizer)
+    Substep 3.1.4: Verify installation by running `import onnxruntime; print(onnxruntime.get_available_providers())`.
+
+Step 3.2: Calibration Data Generation
+    Substep 3.2.1: Write a script to capture 20-50 webcam images of your hand.
+    Substep 3.2.2: Save them to a folder named `/data`.
+    Substep 3.2.3: Ensure images are resized to 640x640 (matching the model input).
+
+Step 3.3: Quantization (Float32 -> Int8)
+    Substep 3.3.1: Write the `quantize.py` script using `vai_q_onnx`.
+    Substep 3.3.2: Point the "CalibrationDataReader" to your `/data` folder.
+    Substep 3.3.3: Run the script to generate `yolov8n-pose.int8.onnx`.
+
+Step 3.4: The NPU Inference Engine
+    Substep 3.4.1: Create the `vaip_config.json` file.
+    Substep 3.4.2: Write `run_npu.py` using `VitisAIExecutionProvider`.
+    Substep 3.4.3: First Run: Allow 2-5 minutes for model compilation (AOT).
+    Substep 3.4.4: Measure Latency: Ensure it runs at real-time speeds (<15ms).
+
+PHASE 4: INTEGRATION & POLISH
+---------------------------------------------------------
+Goal: Merge the Logic (Phase 1) with the Engine (Phase 3).
+Est. Time: 2 Days
+
+Step 4.1: The Engine Swap
+    Substep 4.1.1: Take your Phase 1 script.
+    Substep 4.1.2: Remove the MediaPipe code block.
+    Substep 4.1.3: Insert the NPU Inference code block.
+    Substep 4.1.4: Map the YOLO output format (Keypoints) back to your Phase 1 variables (`index_tip_y`, etc.).
+
+Step 4.2: Performance Tuning
+    Substep 4.2.1: Add a "FPS Counter" to the screen.
+    Substep 4.2.2: Add a "Power Delta" metric (Estimate CPU power saving vs. standard run).
+    Substep 4.2.3: Test the "Smoothing Filter" again (NPU output might have different noise characteristics than MediaPipe).
+
+PHASE 5: PACKAGING & SHOWCASE
+---------------------------------------------------------
+Goal: Make it "Star-Worthy" for GitHub and Career.
+Est. Time: 2 Days
+
+Step 5.1: The Repository Structure
+    Substep 5.1.1: Clean up code. Separate `model.py` (Engine) from `main.py` (App).
+    Substep 5.1.2: Create a `requirements.txt`.
+    Substep 5.1.3: Add the `.onnx` and `.xclbin` files (if license permits) or provide download links.
+
+Step 5.2: Documentation (The "Sell")
+    Substep 5.2.1: Write `README.md`.
+    Substep 5.2.2: Include a GIF of the system in action.
+    Substep 5.2.3: Add a "How to Run on Ryzen AI" section (Installation Guide).
+
+Step 5.3: The Video Demo
+    Substep 5.3.1: Record a 30-second video: "Chips & Chicken Mode."
+    Substep 5.3.2: Post to LinkedIn/X tagging AMD/Intel.
