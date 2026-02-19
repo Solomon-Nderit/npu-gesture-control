@@ -62,7 +62,14 @@ while True:
             mp_hands.HAND_CONNECTIONS,
             mp_drawing_styles.get_default_hand_landmarks_style(),
             mp_drawing_styles.get_default_hand_connections_style())
-        take_action(latest_result.gestures[0][0].category_name)
+        gesture=latest_result.gestures[0][0].category_name
+
+        #Finger tips coordinates
+        index_finger_tip = latest_result.hand_landmarks[0][8]
+        thumb_tip = latest_result.hand_landmarks[0][4]
+
+
+        take_action(gesture, index_finger_tip, thumb_tip)
 
     
     cv2.imshow('Camera', frame)  # Display the frame with drawings
