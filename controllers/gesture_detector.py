@@ -13,42 +13,67 @@ class GestureDetector:
                              Default is 0.05 (5% of screen width approx).
         """
         self.click_threshold = click_threshold
-        self.is_pinching = False
+        self.is_pinching = False # Deprecated: use specific dict below
         self.was_pinching = False
+        
+        # Track states for separate fingers
+        # "index": Drag
+        # "middle": Left Click
+        # "ring": Right Click
+        self.finger_states = {
+            "index": {"is_pinching": False, "was_pinching": False},
+            "middle": {"is_pinching": False, "was_pinching": False},
+            "ring": {"is_pinching": False, "was_pinching": False}
+        }
 
-    def detect_pinch(self, skeleton: HandSkeleton) -> bool:
+    def detect_pinches(self, skeleton: HandSkeleton):
         """
-        Checks if the index finger and thumb are pinching.
-        Returns True if the distance is below the threshold.
+        Updates the pinch state for index, middle, and ring fingers.
         """
-        if not skeleton or len(skeleton.landmarks) <= 8:
-            return False
+        if not skeleton or len(skeleton.landmarks) <= 16:
+            return
 
         thumb_tip = skeleton.thumb_tip
-        index_tip = skeleton.index_tip
-
-        # Calculate Euclidean distance in normalized coordinates (3D distance including Z is better if available, 
-        # but 2D is often sufficient for screen interaction)
-        distance = math.sqrt(
-            (thumb_tip.x - index_tip.x)**2 + 
-            (thumb_tip.y - index_tip.y)**2
-        )
-
-        is_currently_pinching = distance < self.click_threshold
         
-        # State tracking (useful for debouncing or edge detection if needed later)
-        self.was_pinching = self.is_pinching
-        self.is_pinching = is_currently_pinching
-        
-        return self.is_pinching
+        fingers = {
+            "index": skeleton.index_tip,
+            "middle": skeleton.middle_tip,
+            "ring": skeleton.ring_tip
+        }
 
-    def get_click_state(self) -> str:
+        for finger_name, finger_tip in fingers.items():
+             # Calculate Euclidean distance
+            distance = math.sqrt(
+                (thumb_tip.x - finger_tip.x)**2 + 
+                (thumb_tip.y - finger_tip.y)**2
+            )
+            
+            is_currently_pinching = distance < self.click_threshold
+            
+            # Update state
+            self.finger_states[finger_name]["was_pinching"] = self.finger_states[finger_name]["is_pinching"]
+            self.finger_states[finger_name]["is_pinching"] = is_currently_pinching
+
+    def get_action_state(self, finger_name: str) -> str:
         """
-        Returns the simplified mouse button state based on pinch.
-        Returns: 'DOWN', 'UP', or 'NONE' (no change)
+        Returns the simplified button state based on pinch ('DOWN', 'UP', 'NONE').
+        Args:
+            finger_name: "index", "middle", or "ring"
         """
-        if self.is_pinching and not self.was_pinching:
+        state = self.finger_states.get(finger_name)
+        if not state: 
+            return "NONE"
+
+        if state["is_pinching"] and not state["was_pinching"]:
             return "DOWN"
-        elif not self.is_pinching and self.was_pinching:
+        elif not state["is_pinching"] and state["was_pinching"]:
             return "UP"
         return "NONE"
+
+    # Deprecated methods for backward compatibility
+    def detect_pinch(self, skeleton: HandSkeleton) -> bool:
+        self.detect_pinches(skeleton)
+        return self.finger_states["index"]["is_pinching"]
+    
+    def get_click_state(self) -> str:
+        return self.get_action_state("index")

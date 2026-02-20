@@ -7,6 +7,7 @@ from controllers.gesture_state import GestureStateMachine, MachineState
 from controllers.cursor_mapper import CursorMapper
 from controllers.gesture_detector import GestureDetector
 from system.mouse_driver import MouseDriver
+from utils.visualizer import Visualizer
 import config
 
 # Configure logging
@@ -25,7 +26,7 @@ def main():
     
     # System / Output
     mouse_driver = MouseDriver() if config.SYSTEM_MODE == 'MOUSE' else None
-    # visualizer = Visualizer()
+    visualizer = Visualizer()
 
     # 2. Start Camera
     cap = cv2.VideoCapture(config.CAMERA_INDEX)
@@ -65,28 +66,48 @@ def main():
                 
                 # 5. Map Coordinates
                 if len(skeleton.landmarks) > 8:
-                    index_tip = skeleton.landmarks[8]
-                    cursor_x, cursor_y = mapper.map(index_tip, width, height)
+                    # Switch to Index Knuckle (Landmark 5) for stable tracking
+                    # But need to check if landmarks array is big enough
+                    tracking_point = skeleton.index_knuckle
+                    
+                    cursor_x, cursor_y = mapper.map(tracking_point, width, height)
                     
                     # 6. Execute Action based on Mode
                     if is_active:
+                        # Update all pinch states
+                        gesture_detector.detect_pinches(skeleton)
+                        
+                        # Check Index Pinch (The "Clutch" / "Grab")
+                        # "DOWN" means we just started pinching, "NONE" means state unchanged (still pinching or still released)
+                        # We need to know if it IS pinching currently, not just the transition.
+                        is_grabbing = gesture_detector.finger_states["index"]["is_pinching"]
+
                         if config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
-                             # Move Mouse
-                            screen_x = int((cursor_x / width) * mouse_driver.screen_width)
-                            screen_y = int((cursor_y / height) * mouse_driver.screen_height)
-                            mouse_driver.move_to(screen_x, screen_y)
+                            # Move Mouse ONLY if "Grabbing" (Pinching Index)
+                            if is_grabbing:
+                                screen_x = int((cursor_x / width) * mouse_driver.screen_width)
+                                screen_y = int((cursor_y / height) * mouse_driver.screen_height)
+                                mouse_driver.move_to(screen_x, screen_y)
                             
-                            # Handle Clicks (Pinch)
-                            if gesture_detector.detect_pinch(skeleton):
-                                click_state = gesture_detector.get_click_state()
-                                if click_state != "NONE":
-                                    mouse_driver.set_button_state(click_state)
+                            # Left Click (Middle Finger Pinch)
+                            left_click = gesture_detector.get_action_state("middle")
+                            if left_click != "NONE":
+                                mouse_driver.set_button_state(left_click, button='left')
+                                
+                            # Right Click (Ring Finger Pinch)
+                            right_click = gesture_detector.get_action_state("ring")
+                            if right_click != "NONE":
+                                mouse_driver.set_button_state(right_click, button='right')
                         
                         # In DRAW mode, visualizer logic below handles it via is_active flag
             
             # 7. Draw Visuals (Always draw for feedback)
+            # Draw a circle on the knuckle to show tracking point
+            if is_active:
+                cv2.circle(frame, (cursor_x, cursor_y), 8, (0, 255, 255), -1) # Yellow dot for cursor
+
             # If we are in MOUSE mode, we might still want to see the "cursor" on the camera feed
-            # frame = visualizer.update_canvas(frame, cursor_x, cursor_y, is_active and config.SYSTEM_MODE == 'DRAW')
+            frame = visualizer.update_canvas(frame, cursor_x, cursor_y, is_active and config.SYSTEM_MODE == 'DRAW')
 
             # Overlay State Text
             color = (0, 255, 0) if is_active else (0, 0, 255)

@@ -10,8 +10,8 @@ SYSTEM_MODE = 'MOUSE'
 CAMERA_INDEX = 0
 
 # Gesture Thresholds
-PINCH_THRESHOLD = 0.05  # Normalized distance
+PINCH_THRESHOLD = 0.08 # Normalized distance
 ACTIVATION_TIME_MS = 2000  # Time to hold gesture to trigger state change
 
 # Smoothing
-SMOOTHING_FACTOR = 0.5
+SMOOTHING_FACTOR = 0.8

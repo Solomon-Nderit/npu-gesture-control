@@ -41,21 +41,22 @@ class MouseDriver:
         # Move without animation (duration=0) for responsiveness
         self.pg.moveTo(safe_x, safe_y, duration=0)
 
-    def set_button_state(self, state: str):
+    def set_button_state(self, state: str, button: str = 'left'):
         """
         Sets the mouse button state.
         Args:
             state: 'DOWN', 'UP'
+            button: 'left', 'middle', 'right'
         """
         if not self.driver_available:
             return
 
         if state == "DOWN":
-            self.pg.mouseDown()
+            self.pg.mouseDown(button=button)
         elif state == "UP":
-            self.pg.mouseUp()
+            self.pg.mouseUp(button=button)
         
-    def click(self):
+    def click(self, button='left'):
         """Performs a single click."""
         if self.driver_available:
-            self.pg.click()
+            self.pg.click(button=button)

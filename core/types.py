@@ -30,9 +30,17 @@ class HandSkeleton:
         return self.landmarks[4]
 
     @property
+    def index_knuckle(self) -> Point:
+        return self.landmarks[5]
+
+    @property
     def index_tip(self) -> Point:
         return self.landmarks[8]
 
     @property
     def middle_tip(self) -> Point:
         return self.landmarks[12]
+
+    @property
+    def ring_tip(self) -> Point:
+        return self.landmarks[16]
