@@ -25,6 +25,7 @@ cam = cv2.VideoCapture(0)
 
 
 latest_result = None  # Type: GestureRecognizerResult | None
+timestamps_and_gestures = {}
 
 #Create a gesture recognizer instance with live stream mode:
 def print_result(result: GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
@@ -48,6 +49,7 @@ def get_gestures(frame,timestamp):
     return result
 
 
+
 while True:
     ret, frame = cam.read()  # frame is already a numpy.ndarray
     timestamp_ms = cam.get(cv2.CAP_PROP_POS_MSEC)
@@ -68,8 +70,8 @@ while True:
         index_finger_tip = latest_result.hand_landmarks[0][8]
         thumb_tip = latest_result.hand_landmarks[0][4]
 
-
-        take_action(gesture, index_finger_tip, thumb_tip)
+        timestamps_and_gestures[timestamp_ms] = gesture
+        take_action(gesture, index_finger_tip, thumb_tip, timestamps_and_gestures)
 
     
     cv2.imshow('Camera', frame)  # Display the frame with drawings
