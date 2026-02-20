@@ -1,66 +1,106 @@
 
-gestures = []
+from collections import deque
+from enum import Enum
+import logging
 
-machine_state = None
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+class MachineState(Enum):
+    ACTIVE = "active"
+    PASSIVE = "passive"
+    UNKNOWN = "unknown"
+
+class GestureStateMachine:
+    def __init__(self, time_window_ms=2000):
+        """
+        Initializes the state machine.
+        :param time_window_ms: The duration (in ms) of consistent gestures required to switch states.
+        """
+        # Store tuples of (timestamp, gesture_name)
+        self.gesture_buffer = deque() 
+        self.time_window_ms = time_window_ms
+        self.current_state = MachineState.PASSIVE
+        
+        # Configuration
+        self.target_gesture_active = "Open_Palm"
+        self.target_gesture_passive = "Closed_Fist"
+
+    def update(self, gesture_name, timestamp_ms):
+        """
+        Updates the buffer with the new gesture and determines the current state.
+        Returns the current state string ('active' or 'passive').
+        """
+        self._add_to_buffer(gesture_name, timestamp_ms)
+        self._prune_buffer(timestamp_ms)
+        self._evaluate_state()
+        
+        return self.current_state.value
+
+    def _add_to_buffer(self, gesture, timestamp):
+        self.gesture_buffer.append((timestamp, gesture))
+
+    def _prune_buffer(self, current_time):
+        # Remove gestures older than the time window
+        threshold = current_time - self.time_window_ms
+        while self.gesture_buffer and self.gesture_buffer[0][0] < threshold:
+            self.gesture_buffer.popleft()
+
+    def _evaluate_state(self):
+        if not self.gesture_buffer:
+            return
+
+        # Check mostly consistent gestures? Or strictly consistent?
+        # Sticking to strict consistency for now as per original logic.
+        
+        # If we have very little data (start of program), don't switch yet to avoid glitches
+        if len(self.gesture_buffer) < 5: 
+            return
+
+        gestures_in_window = [g[1] for g in self.gesture_buffer]
+        
+        if all(g == self.target_gesture_active for g in gestures_in_window):
+            self._transition_to(MachineState.ACTIVE)
+        elif all(g == self.target_gesture_passive for g in gestures_in_window):
+            self._transition_to(MachineState.PASSIVE)
+
+    def _transition_to(self, new_state):
+        if self.current_state != new_state:
+            logging.info(f"State transition: {self.current_state.name} -> {new_state.name}")
+            self.current_state = new_state
+
+# Singleton instance to maintain state across function calls
+_state_machine = GestureStateMachine(time_window_ms=2000)
 
 def take_action(gesture, index_finger_coordinates, thumb_tip, time_and_gesture):
-    #print(f"{gesture} Index finger location: {index_finger_coordinates.x},{index_finger_coordinates.y} Thumb tip: {thumb_tip.x}, {thumb_tip.y}")
-    change_machine_state(time_and_gesture)
-
-
-def are_values_same(dictionary, start_key, end_key, target_value=None):
     """
-    Checks if all items between two keys in a dictionary have the same value.
-    Assumes keys are ordered and present in the dictionary.
+    Main entry point for gesture processing.
+    
+    Args:
+        gesture (str): The name of the detected gesture.
+        index_finger_coordinates (NormalizedLandmark): The coordinates of the index finger tip.
+        thumb_tip (NormalizedLandmark): The coordinates of the thumb tip.
+        time_and_gesture (dict): A dictionary of timestamp -> gesture. 
+                                 (Legacy argument, largely ignored now in favor of internal tracking 
+                                  except for extracting the latest timestamp if needed).
+    
+    Returns:
+        str: The current state of the machine ('active' or 'passive').
     """
-    # Extract the keys in the desired range. This example assumes integer keys.
-    # Adjust key retrieval logic if your keys are strings or have different ranges/ordering.
-    relevant_keys = [k for k in sorted(dictionary) if start_key <= k <= end_key]
-
-    if not relevant_keys:
-        return True  # Or handle as appropriate, e.g., raise an error or return False
-
-    first_value = dictionary[relevant_keys[0]]
-    # Check if all other values in the range are equal to the first value
-    if all(dictionary[key] == "Open_Palm" for key in relevant_keys[1:]):
-        return "active"
     
-    elif all(dictionary[key] == "Closed_Fist" for key in relevant_keys[1:]):
-        return "passive"
-    
+    # Extract the latest timestamp. 
+    # Since the caller appends to the dict right before calling us, the last item is current.
+    if time_and_gesture:
+        # Get last key
+        latest_timestamp = next(reversed(time_and_gesture))
     else:
-        print("Different gestures")
-    
+        # Fallback if dict is empty (shouldn't happen in normal flow)
+        import time
+        latest_timestamp = time.time() * 1000
 
+    current_state = _state_machine.update(gesture, latest_timestamp)
+    return current_state
 
-def machine_active():
-    print("The machine is active")
-
-def machine_passive():
-    print("The machine is passive")
-
-def change_machine_state(time_and_gesture):
-    global machine_state
-    #Logic to check whether the gestures for the past two seconds have been open_palm
-    # print(time_and_gesture)
-
-    # 1. Find the key of last item in the dictionary (i.e. latest time)
-    # 2. Subtract 2 seconds from it to find the index of the gesture two seconds ago
-    # 3. Find out if all the gestures in those two seconds have been an open palm
-    # 4. Change the machine state to passive
-
-    latest_time = next(reversed(time_and_gesture))
-    time_two_seconds_ago = latest_time - 2000
-
-    truth = are_values_same(time_and_gesture, time_two_seconds_ago, latest_time, "Open_Palm")
-
-    machine_state = truth
-    
-    print(f"Machine state is now {machine_state}")
-
-
-    return 0
 
 
 

@@ -4,6 +4,7 @@ import time
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+from draw_on_screen import Drawer
 
 
 from action_taker import take_action
@@ -22,6 +23,7 @@ mp_drawing_styles = mp.tasks.vision.drawing_styles
 #Open Default Camera
 
 cam = cv2.VideoCapture(0)
+drawer = Drawer()
 
 
 latest_result = None  # Type: GestureRecognizerResult | None
@@ -44,7 +46,7 @@ recognizer = GestureRecognizer.create_from_options(options)
 
 #Return detection result object
 def get_gestures(frame,timestamp):
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     result = recognizer.recognize_async(mp_image, int(timestamp))
     return result
 
@@ -52,6 +54,7 @@ def get_gestures(frame,timestamp):
 
 while True:
     ret, frame = cam.read()  # frame is already a numpy.ndarray
+    frame = cv2.flip(frame, 1) # Mirror the frame to make drawing intuitive
     timestamp_ms = cam.get(cv2.CAP_PROP_POS_MSEC)
 
     # Send for async recognition
@@ -71,7 +74,14 @@ while True:
         thumb_tip = latest_result.hand_landmarks[0][4]
 
         timestamps_and_gestures[timestamp_ms] = gesture
-        take_action(gesture, index_finger_tip, thumb_tip, timestamps_and_gestures)
+        machine_state = take_action(gesture, index_finger_tip, thumb_tip, timestamps_and_gestures)
+        
+        # Convert to pixel coordinates
+        height, width, _ = frame.shape
+        x_pixel = index_finger_tip.x * width
+        y_pixel = index_finger_tip.y * height
+        
+        frame = drawer.update_canvas(frame, x_pixel, y_pixel, machine_state == "active")
 
     
     cv2.imshow('Camera', frame)  # Display the frame with drawings
