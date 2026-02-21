@@ -9,13 +9,24 @@ class CursorMapper:
     def __init__(self, smoothing_factor=0.8, history_length=10, sensitivity=0.2):
         self.smoothing_factor = smoothing_factor
         self.history = deque(maxlen=history_length)
+        self._sensitivity = sensitivity
         
-        # Define the active area in the camera frame that maps to the full screen.
-        # A smaller area means higher sensitivity (less head movement required).
-        # sensitivity=0.2 means the active zone is 0.5 +/- 0.2 = [0.3, 0.7]
+        # Default active area centred on frame — overridden by calibrate()
+        self._set_active_area(0.5, 0.5)
+
+    def calibrate(self, origin: Point) -> None:
+        """
+        Recentre the active area around the given nose position.
+        Call this once when the system transitions to active.
+        """
+        self.history.clear()
+        self._set_active_area(origin.x, origin.y)
+
+    def _set_active_area(self, cx: float, cy: float) -> None:
+        s = self._sensitivity
         self.active_area = {
-            'x_min': 0.5 - sensitivity, 'x_max': 0.5 + sensitivity,
-            'y_min': 0.5 - sensitivity, 'y_max': 0.5 + sensitivity
+            'x_min': cx - s, 'x_max': cx + s,
+            'y_min': cy - s, 'y_max': cy + s,
         }
 
     def map_absolute(self, point: Point, screen_width: int, screen_height: int) -> tuple[int, int]:

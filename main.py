@@ -41,6 +41,7 @@ def main():
         print("- Pinch to Click.")
     
     current_state = MachineState.PASSIVE.value
+    prev_state = MachineState.PASSIVE.value
 
     try:
         while True:
@@ -67,7 +68,13 @@ def main():
             else:
                 current_state = "passive"
                 is_active = False
-                
+
+            # Calibrate mapper when transitioning from passive -> active
+            just_activated = (current_state == "active" and prev_state != "active")
+            if just_activated and face_skeleton:
+                mapper.calibrate(face_skeleton.nose_tip)
+            prev_state = current_state
+
             # 5. Map Coordinates (Head Tracking)
             if face_skeleton and is_active:
                 tracking_point = face_skeleton.nose_tip
