@@ -41,6 +41,20 @@ class MouseDriver:
         # Move without animation (duration=0) for responsiveness
         self.pg.moveTo(safe_x, safe_y, duration=0)
 
+    def move_relative(self, dx: int, dy: int):
+        """
+        Moves the mouse cursor relative to its current position.
+        Args:
+            dx: Change in x (pixels).
+            dy: Change in y (pixels).
+        """
+        if not self.driver_available:
+            return
+            
+        # pyautogui.move() handles relative movement
+        # _pause=False ensures it doesn't add delays
+        self.pg.move(dx, dy, _pause=False)
+
     def set_button_state(self, state: str, button: str = 'left'):
         """
         Sets the mouse button state.

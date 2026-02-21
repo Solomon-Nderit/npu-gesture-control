@@ -21,7 +21,7 @@ def main():
     
     # Logic Controllers
     state_machine = GestureStateMachine(time_window_ms=config.ACTIVATION_TIME_MS)
-    mapper = CursorMapper(smoothing_factor=config.SMOOTHING_FACTOR)
+    mapper = CursorMapper(smoothing_factor=config.SMOOTHING_FACTOR, sensitivity=config.HEAD_SENSITIVITY)
     gesture_detector = GestureDetector(click_threshold=config.PINCH_THRESHOLD)
     
     # System / Output
@@ -53,58 +53,69 @@ def main():
             height, width, _ = frame.shape
             timestamp_ms = time.time() * 1000 # Use system time as fallback or cap.get(cv2.CAP_PROP_POS_MSEC)
 
-            # 3. Get Skeleton (The "Input")
-            skeleton = engine.process_frame(frame, timestamp_ms)
+            # 3. Get Skeletons (The "Input")
+            hand_skeleton, face_skeleton = engine.process_frame(frame, timestamp_ms)
 
             is_active = False 
             cursor_x, cursor_y = 0, 0
 
-            if skeleton:
-                # 4. Update State (The "Logic")
-                current_state = state_machine.process_skeleton(skeleton)
+            # 4. Update State (The "Logic")
+            # We use the hand to determine active/passive state
+            if hand_skeleton:
+                current_state = state_machine.process_skeleton(hand_skeleton)
                 is_active = (current_state == "active")
+            else:
+                current_state = "passive"
+                is_active = False
                 
-                # 5. Map Coordinates
-                if len(skeleton.landmarks) > 8:
-                    # Switch to Index Knuckle (Landmark 5) for stable tracking
-                    # But need to check if landmarks array is big enough
-                    tracking_point = skeleton.index_knuckle
-                    
-                    cursor_x, cursor_y = mapper.map(tracking_point, width, height)
-                    
-                    # 6. Execute Action based on Mode
-                    if is_active:
-                        # Update all pinch states
-                        gesture_detector.detect_pinches(skeleton)
-                        
-                        # Check Index Pinch (The "Clutch" / "Grab")
-                        # "DOWN" means we just started pinching, "NONE" means state unchanged (still pinching or still released)
-                        # We need to know if it IS pinching currently, not just the transition.
-                        is_grabbing = gesture_detector.finger_states["index"]["is_pinching"]
+            # 5. Map Coordinates (Head Tracking)
+            if face_skeleton and is_active:
+                tracking_point = face_skeleton.nose_tip
+                cursor_x, cursor_y = mapper.map_absolute(tracking_point, width, height)
+                
+                if config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
+                    # Move Mouse using Absolute Position
+                    # We map to screen resolution, not frame resolution
+                    screen_w, screen_h = mouse_driver.screen_width, mouse_driver.screen_height
+                    mouse_x, mouse_y = mapper.map_absolute(tracking_point, screen_w, screen_h)
+                    mouse_driver.move_to(mouse_x, mouse_y)
 
-                        if config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
-                            # Move Mouse ONLY if "Grabbing" (Pinching Index)
-                            if is_grabbing:
-                                screen_x = int((cursor_x / width) * mouse_driver.screen_width)
-                                screen_y = int((cursor_y / height) * mouse_driver.screen_height)
-                                mouse_driver.move_to(screen_x, screen_y)
-                            
-                            # Left Click (Middle Finger Pinch)
-                            left_click = gesture_detector.get_action_state("middle")
-                            if left_click != "NONE":
-                                mouse_driver.set_button_state(left_click, button='left')
-                                
-                            # Right Click (Ring Finger Pinch)
-                            right_click = gesture_detector.get_action_state("ring")
-                            if right_click != "NONE":
-                                mouse_driver.set_button_state(right_click, button='right')
+            # 6. Execute Action based on Mode (Hand Gestures)
+            if hand_skeleton and is_active:
+                # Update all pinch states
+                gesture_detector.detect_pinches(hand_skeleton)
+                
+                if config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
+                    # Left Click (Index Finger Pinch)
+                    left_click = gesture_detector.get_action_state("index")
+                    if left_click != "NONE":
+                        mouse_driver.set_button_state(left_click, button='left')
                         
-                        # In DRAW mode, visualizer logic below handles it via is_active flag
-            
+                    # Right Click (Middle Finger Pinch)
+                    right_click = gesture_detector.get_action_state("middle")
+                    if right_click != "NONE":
+                        mouse_driver.set_button_state(right_click, button='right')
+                        
             # 7. Draw Visuals (Always draw for feedback)
-            # Draw a circle on the knuckle to show tracking point
-            if is_active:
+            # Draw Active Area for Head Tracking
+            active_area = mapper.active_area
+            x_min = int(active_area['x_min'] * width)
+            x_max = int(active_area['x_max'] * width)
+            y_min = int(active_area['y_min'] * height)
+            y_max = int(active_area['y_max'] * height)
+            
+            # Active Area Visual (White Rectangle)
+            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (255, 255, 255), 1)
+
+            # Draw a circle on the nose to show tracking point
+            if is_active and face_skeleton:
                 cv2.circle(frame, (cursor_x, cursor_y), 8, (0, 255, 255), -1) # Yellow dot for cursor
+
+            # Draw skeletons for feedback
+            if hand_skeleton:
+                frame = visualizer.draw_skeleton(frame, hand_skeleton)
+            if face_skeleton:
+                frame = visualizer.draw_face_skeleton(frame, face_skeleton)
 
             # If we are in MOUSE mode, we might still want to see the "cursor" on the camera feed
             frame = visualizer.update_canvas(frame, cursor_x, cursor_y, is_active and config.SYSTEM_MODE == 'DRAW')

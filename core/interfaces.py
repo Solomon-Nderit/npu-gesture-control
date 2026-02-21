@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Any
-from .types import HandSkeleton
+from typing import Optional, Any, Tuple
+from .types import HandSkeleton, FaceSkeleton
 
 class IPoseEngine(ABC):
     """
@@ -13,14 +13,14 @@ class IPoseEngine(ABC):
         pass
 
     @abstractmethod
-    def process_frame(self, frame: Any, timestamp: int) -> Optional[HandSkeleton]:
+    def process_frame(self, frame: Any, timestamp: int) -> Tuple[Optional[HandSkeleton], Optional[FaceSkeleton]]:
         """
-        Processes a single video frame and returns a HandSkeleton if a hand is detected.
+        Processes a single video frame and returns skeletons if detected.
         Args:
             frame: The image frame (usually numpy array from OpenCV).
             timestamp: The timestamp of the frame in milliseconds.
         Returns:
-            HandSkeleton object or None if no hand is detected.
+            Tuple of (HandSkeleton, FaceSkeleton). Either can be None.
         """
         pass
 

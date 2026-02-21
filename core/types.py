@@ -44,3 +44,16 @@ class HandSkeleton:
     @property
     def ring_tip(self) -> Point:
         return self.landmarks[16]
+
+@dataclass
+class FaceSkeleton:
+    """
+    Standardized representation of a detected face.
+    """
+    landmarks: List[Point]
+    timestamp: int
+
+    @property
+    def nose_tip(self) -> Point:
+        # In MediaPipe Face Mesh, landmark 1 is the tip of the nose
+        return self.landmarks[1] if len(self.landmarks) > 1 else Point(0,0,0)

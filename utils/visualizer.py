@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from core.types import HandSkeleton, Point
+from core.types import HandSkeleton, FaceSkeleton, Point
 
 class Visualizer:
     def __init__(self):
@@ -49,6 +49,21 @@ class Visualizer:
             cx, cy = int(lm.x * width), int(lm.y * height)
             cv2.circle(frame, (cx, cy), 5, (0, 0, 255), -1)
             
+        return frame
+
+    def draw_face_skeleton(self, frame, skeleton: FaceSkeleton):
+        """Draws the face landmarks on the frame."""
+        if not skeleton or not skeleton.landmarks:
+            return frame
+            
+        height, width, _ = frame.shape
+        
+        # Draw points (just a few key ones to avoid clutter)
+        # Nose tip is landmark 1
+        nose_tip = skeleton.nose_tip
+        cx, cy = int(nose_tip.x * width), int(nose_tip.y * height)
+        cv2.circle(frame, (cx, cy), 5, (255, 0, 0), -1) # Blue dot for nose tip
+        
         return frame
 
     def _draw_connection(self, frame, p1: Point, p2: Point, w, h):
