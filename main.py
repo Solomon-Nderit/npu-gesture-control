@@ -4,7 +4,7 @@ import logging
 
 from engines.mediapipe_engine import MediaPipeEngine
 from controllers.gesture_state import GestureStateMachine, MachineState
-from controllers.cursor_mapper import CursorMapper
+from controllers.cursor_mapper import PinchJoystick
 from controllers.gesture_detector import GestureDetector
 from system.mouse_driver import MouseDriver
 from utils.visualizer import Visualizer
@@ -18,13 +18,19 @@ def main():
 
     # 1. Initialize Components
     engine = MediaPipeEngine()
-    
-    # Logic Controllers
+
     state_machine = GestureStateMachine(time_window_ms=config.ACTIVATION_TIME_MS)
-    mapper = CursorMapper(smoothing_factor=config.SMOOTHING_FACTOR, sensitivity=config.HEAD_SENSITIVITY)
-    gesture_detector = GestureDetector(click_threshold=config.PINCH_THRESHOLD)
-    
-    # System / Output
+    joystick = PinchJoystick(
+        deadzone=config.JOYSTICK_DEADZONE,
+        max_radius=config.JOYSTICK_MAX_RADIUS,
+        max_speed=config.JOYSTICK_MAX_SPEED,
+        smoothing=config.SMOOTHING_FACTOR,
+    )
+    gesture_detector = GestureDetector(
+        joystick_threshold=config.PINCH_THRESHOLD,
+        click_threshold=config.CLICK_THRESHOLD,
+    )
+
     mouse_driver = MouseDriver() if config.SYSTEM_MODE == 'MOUSE' else None
     visualizer = Visualizer()
 
@@ -35,11 +41,12 @@ def main():
         return
 
     print("System Ready.")
-    print("- Hold 'Open Palm' to activate.")
-    print("- Hold 'Closed Fist' to deactivate.")
-    if config.SYSTEM_MODE == 'MOUSE':
-        print("- Pinch to Click.")
-    
+    print("- Hold 'Open Palm' for 2 s to activate.")
+    print("- Hold 'Closed Fist' for 2 s to deactivate.")
+    print("- Pinch index+thumb to move cursor (joystick).")
+    print("- Tap middle+thumb for Left Click.")
+    print("- Tap ring+thumb for Right Click.")
+
     current_state = MachineState.PASSIVE.value
 
     try:
@@ -47,97 +54,73 @@ def main():
             ret, frame = cap.read()
             if not ret:
                 break
-            
-            # Pre-processing (Mirroring)
+
             frame = cv2.flip(frame, 1)
             height, width, _ = frame.shape
-            timestamp_ms = time.time() * 1000 # Use system time as fallback or cap.get(cv2.CAP_PROP_POS_MSEC)
+            timestamp_ms = time.time() * 1000
 
-            # 3. Get Skeletons (The "Input")
-            hand_skeleton, face_skeleton = engine.process_frame(frame, timestamp_ms)
+            # 3. Get skeleton
+            hand_skeleton, _ = engine.process_frame(frame, timestamp_ms)
 
-            is_active = False 
-            cursor_x, cursor_y = 0, 0
-
-            # 4. Update State (The "Logic")
-            # We use the hand to determine active/passive state
+            # 4. Update activation state machine
             if hand_skeleton:
                 current_state = state_machine.process_skeleton(hand_skeleton)
-                is_active = (current_state == "active")
             else:
-                current_state = "passive"
-                is_active = False
-                
-            # 5. Map Coordinates (Head Tracking)
-            if face_skeleton and is_active:
-                tracking_point = face_skeleton.nose_tip
-                cursor_x, cursor_y = mapper.map_absolute(tracking_point, width, height)
-                
-                if config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
-                    # Move Mouse using Absolute Position
-                    # We map to screen resolution, not frame resolution
-                    screen_w, screen_h = mouse_driver.screen_width, mouse_driver.screen_height
-                    mouse_x, mouse_y = mapper.map_absolute(tracking_point, screen_w, screen_h)
-                    mouse_driver.move_to(mouse_x, mouse_y)
+                current_state = MachineState.PASSIVE.value
 
-            # 6. Execute Action based on Mode (Hand Gestures)
+            is_active = current_state == MachineState.ACTIVE.value
+
+            # 5. Update gesture detector
             if hand_skeleton and is_active:
-                # Update all pinch states
-                gesture_detector.detect_pinches(hand_skeleton)
-                
-                if config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
-                    # Left Click (Index Finger Pinch)
-                    left_click = gesture_detector.get_action_state("index")
-                    if left_click != "NONE":
-                        mouse_driver.set_button_state(left_click, button='left')
-                        
-                    # Right Click (Middle Finger Pinch)
-                    right_click = gesture_detector.get_action_state("middle")
-                    if right_click != "NONE":
-                        mouse_driver.set_button_state(right_click, button='right')
-                        
-            # 7. Draw Visuals (Always draw for feedback)
-            # Draw Active Area for Head Tracking
-            active_area = mapper.active_area
-            x_min = int(active_area['x_min'] * width)
-            x_max = int(active_area['x_max'] * width)
-            y_min = int(active_area['y_min'] * height)
-            y_max = int(active_area['y_max'] * height)
-            
-            # Active Area Visual (White Rectangle)
-            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (255, 255, 255), 1)
+                gesture_detector.update(hand_skeleton)
+            else:
+                gesture_detector.update(None)
 
-            # Draw a circle on the nose to show tracking point
-            if is_active and face_skeleton:
-                cv2.circle(frame, (cursor_x, cursor_y), 8, (0, 255, 255), -1) # Yellow dot for cursor
+            is_pinching = gesture_detector.is_joystick_pinching
 
-            # Draw skeletons for feedback
+            # 6. Run joystick
+            vel_x, vel_y = joystick.update(hand_skeleton if is_active else None, is_pinching)
+
+            # 7. Handle clicks (middle=left, ring=right)
+            if is_active and hand_skeleton and config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
+                left_event = gesture_detector.get_click_event("middle")
+                right_event = gesture_detector.get_click_event("ring")
+
+                if left_event != "NONE":
+                    mouse_driver.set_button_state(left_event, button='left')
+                    if left_event == "DOWN":
+                        joystick.lock(config.CLICK_LOCK_MS)
+
+                if right_event != "NONE":
+                    mouse_driver.set_button_state(right_event, button='right')
+                    if right_event == "DOWN":
+                        joystick.lock(config.CLICK_LOCK_MS)
+
+            # 8. Move mouse
+            if is_active and (vel_x != 0 or vel_y != 0) and config.SYSTEM_MODE == 'MOUSE' and mouse_driver:
+                mouse_driver.move_relative(int(vel_x), int(vel_y))
+
+            # 9. Draw Visuals
             if hand_skeleton:
                 frame = visualizer.draw_skeleton(frame, hand_skeleton)
-            if face_skeleton:
-                frame = visualizer.draw_face_skeleton(frame, face_skeleton)
 
-            # If we are in MOUSE mode, we might still want to see the "cursor" on the camera feed
-            frame = visualizer.update_canvas(frame, cursor_x, cursor_y, is_active and config.SYSTEM_MODE == 'DRAW')
+            frame = visualizer.draw_joystick(frame, joystick, is_active)
 
-            # Overlay State Text
             color = (0, 255, 0) if is_active else (0, 0, 255)
-            cv2.putText(frame, f"State: {current_state}", (10, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+            cv2.putText(frame, f"State: {current_state}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
-            # Display
             cv2.imshow('Gesture Control', frame)
-            
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-                
+
     except KeyboardInterrupt:
         pass
     finally:
-        # Cleanup
         cap.release()
         cv2.destroyAllWindows()
         engine.release()
 
 if __name__ == "__main__":
     main()
+

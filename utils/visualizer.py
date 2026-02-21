@@ -1,6 +1,7 @@
 import cv2
+import math
 import numpy as np
-from core.types import HandSkeleton, FaceSkeleton, Point
+from core.types import HandSkeleton, Point, FaceSkeleton
 
 class Visualizer:
     def __init__(self):
@@ -52,18 +53,45 @@ class Visualizer:
         return frame
 
     def draw_face_skeleton(self, frame, skeleton: FaceSkeleton):
-        """Draws the face landmarks on the frame."""
-        if not skeleton or not skeleton.landmarks:
+        """No-op: face tracking not used in this branch."""
+        return frame
+
+    def draw_joystick(self, frame, joystick, is_active: bool):
+        """
+        Draws the pinch-joystick overlay:
+          - Grey outer ring  = max_radius boundary
+          - White inner ring = deadzone
+          - Green dot        = origin (where the pinch started)
+          - Yellow dot       = current pinch position
+          - Line             = deflection vector
+        Only shown when a joystick origin exists.
+        """
+        if not is_active or joystick.origin is None:
             return frame
-            
-        height, width, _ = frame.shape
-        
-        # Draw points (just a few key ones to avoid clutter)
-        # Nose tip is landmark 1
-        nose_tip = skeleton.nose_tip
-        cx, cy = int(nose_tip.x * width), int(nose_tip.y * height)
-        cv2.circle(frame, (cx, cy), 5, (255, 0, 0), -1) # Blue dot for nose tip
-        
+
+        h, w, _ = frame.shape
+        ox = int(joystick.origin.x * w)
+        oy = int(joystick.origin.y * h)
+
+        # Scale radii from normalised units to pixels (use width as reference)
+        deadzone_px   = int(joystick.deadzone   * w)
+        max_radius_px = int(joystick.max_radius * w)
+
+        # Outer ring (max radius)
+        cv2.circle(frame, (ox, oy), max_radius_px, (100, 100, 100), 1)
+        # Deadzone ring
+        cv2.circle(frame, (ox, oy), deadzone_px,   (200, 200, 200), 1)
+        # Origin dot
+        cv2.circle(frame, (ox, oy), 6, (0, 255, 0), -1)
+
+        if joystick.current is not None:
+            cx = int(joystick.current.x * w)
+            cy = int(joystick.current.y * h)
+            # Deflection line
+            cv2.line(frame, (ox, oy), (cx, cy), (0, 255, 255), 2)
+            # Current position dot
+            cv2.circle(frame, (cx, cy), 8, (0, 255, 255), -1)
+
         return frame
 
     def _draw_connection(self, frame, p1: Point, p2: Point, w, h):

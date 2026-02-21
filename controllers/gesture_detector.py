@@ -1,79 +1,93 @@
-from core.types import HandSkeleton, Point
+from core.types import HandSkeleton
 import math
+
 
 class GestureDetector:
     """
-    Detects specific gesture intents from a hand skeleton, such as pinching.
+    Detects gesture intents from a hand skeleton.
+
+    Roles:
+      - Index + Thumb pinch  → joystick gate (cursor moves while held)
+      - Middle + Thumb tap   → Left Click
+      - Ring + Thumb tap     → Right Click
     """
-    def __init__(self, click_threshold: float = 0.05):
+
+    def __init__(self, joystick_threshold: float = 0.04, click_threshold: float = 0.04):
         """
         Args:
-            click_threshold: The normalized distance between thumb and index tip 
-                             to consider a 'click' (pinch). 
-                             Default is 0.05 (5% of screen width approx).
+            joystick_threshold: Distance for index+thumb joystick activation.
+            click_threshold:    Distance for middle/ring+thumb click taps.
         """
+        self.joystick_threshold = joystick_threshold
         self.click_threshold = click_threshold
-        self.is_pinching = False # Deprecated: use specific dict below
-        self.was_pinching = False
-        
-        # Track states for separate fingers
-        # "index": Drag
-        # "middle": Left Click
-        # "ring": Right Click
-        self.finger_states = {
-            "index": {"is_pinching": False, "was_pinching": False},
+
+        # Click tap states (middle and ring only — index is the joystick gate)
+        self.click_states = {
             "middle": {"is_pinching": False, "was_pinching": False},
-            "ring": {"is_pinching": False, "was_pinching": False}
+            "ring":   {"is_pinching": False, "was_pinching": False},
         }
 
-    def detect_pinches(self, skeleton: HandSkeleton):
-        """
-        Updates the pinch state for index, middle, and ring fingers.
-        """
+        # Joystick gate state
+        self._joystick_pinching = False
+
+    # ------------------------------------------------------------------
+    # Joystick gate
+    # ------------------------------------------------------------------
+
+    def update(self, skeleton: HandSkeleton) -> None:
+        """Update all gesture states from the latest skeleton."""
         if not skeleton or len(skeleton.landmarks) <= 16:
+            self._joystick_pinching = False
+            for s in self.click_states.values():
+                s["was_pinching"] = s["is_pinching"]
+                s["is_pinching"] = False
             return
 
-        thumb_tip = skeleton.thumb_tip
-        
-        fingers = {
-            "index": skeleton.index_tip,
+        thumb = skeleton.thumb_tip
+
+        # Joystick gate: index + thumb
+        self._joystick_pinching = self._dist(thumb, skeleton.index_tip) < self.joystick_threshold
+
+        # Click taps
+        click_fingers = {
             "middle": skeleton.middle_tip,
-            "ring": skeleton.ring_tip
+            "ring":   skeleton.ring_tip,
         }
+        for name, tip in click_fingers.items():
+            dist = self._dist(thumb, tip)
+            self.click_states[name]["was_pinching"] = self.click_states[name]["is_pinching"]
+            self.click_states[name]["is_pinching"] = dist < self.click_threshold
 
-        for finger_name, finger_tip in fingers.items():
-             # Calculate Euclidean distance
-            distance = math.sqrt(
-                (thumb_tip.x - finger_tip.x)**2 + 
-                (thumb_tip.y - finger_tip.y)**2
-            )
-            
-            is_currently_pinching = distance < self.click_threshold
-            
-            # Update state
-            self.finger_states[finger_name]["was_pinching"] = self.finger_states[finger_name]["is_pinching"]
-            self.finger_states[finger_name]["is_pinching"] = is_currently_pinching
+    @property
+    def is_joystick_pinching(self) -> bool:
+        return self._joystick_pinching
 
-    def get_action_state(self, finger_name: str) -> str:
+    # ------------------------------------------------------------------
+    # Click events
+    # ------------------------------------------------------------------
+
+    def get_click_event(self, finger: str) -> str:
         """
-        Returns the simplified button state based on pinch ('DOWN', 'UP', 'NONE').
+        Returns the button transition for a click finger.
+        'DOWN' on pinch start, 'UP' on release, 'NONE' otherwise.
+
         Args:
-            finger_name: "index", "middle", or "ring"
+            finger: 'middle' (left click) or 'ring' (right click).
         """
-        state = self.finger_states.get(finger_name)
-        if not state: 
+        state = self.click_states.get(finger)
+        if not state:
             return "NONE"
-
         if state["is_pinching"] and not state["was_pinching"]:
             return "DOWN"
-        elif not state["is_pinching"] and state["was_pinching"]:
+        if not state["is_pinching"] and state["was_pinching"]:
             return "UP"
         return "NONE"
 
-    # Deprecated methods for backward compatibility
-    def detect_pinch(self, skeleton: HandSkeleton) -> bool:
-        self.detect_pinches(skeleton)
-        return self.finger_states["index"]["is_pinching"]
-    
-    def get_click_state(self) -> str:
-        return self.get_action_state("index")
+    # ------------------------------------------------------------------
+    # Helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _dist(a, b) -> float:
+        return math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
+
