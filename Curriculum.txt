@@ -1,0 +1,35 @@
+PROJECT: EDGE AI FUNDAMENTALS (WEEKEND CURRICULUM)
+GOAL: Master the plumbing required to manipulate image data and run inference locally.
+
+MODULE 1: TENSOR PLUMBING (NUMPY)
+---------------------------------------------------------
+Goal: Stop seeing images as pictures; see them as multi-dimensional arrays.
+Task: Write isolated scripts to perform the following without looking up the answers immediately.
+[ ] Load an image using OpenCV (returns a NumPy array). Print its `.shape`.
+[ ] Slice the array: Crop the image to the center 200x200 pixels and display it.
+[ ] Transpose: Convert the shape from (Height, Width, Channels) to (Channels, Height, Width).
+[ ] Expand: Add a "Batch" dimension to the front so a (3, 640, 640) array becomes (1, 3, 640, 640).
+[ ] Normalize: Convert the integer array (0-255) to a float32 array (0.0-1.0).
+
+MODULE 2: THE I/O LAYER (OPENCV)
+---------------------------------------------------------
+Goal: Manage the webcam and draw visual debuggers.
+[ ] Write a script that opens the webcam and displays the feed in a window.
+[ ] Convert the color space of the feed from BGR to RGB, then back to BGR.
+[ ] Draw a static red crosshair (two lines) dead center on the screen.
+[ ] Press 'q' to break the loop and close the window cleanly.
+
+MODULE 3: THE INFERENCE API (ONNX RUNTIME)
+---------------------------------------------------------
+Goal: Treat the NPU/CPU model as a black-box function.
+[ ] Initialize an ONNX `InferenceSession` using the CPU provider.
+[ ] Use `session.get_inputs()[0].name` to programmatically find the input name.
+[ ] Pass a dummy NumPy array of pure zeros (shape 1, 3, 640, 640) into the model.
+[ ] Print the `.shape` of the output array. (This proves you can talk to the model).
+
+MODULE 4: GEOMETRIC STATE MACHINES (BUSINESS LOGIC)
+---------------------------------------------------------
+Goal: Translate raw X/Y coordinates into human actions.
+[ ] Write a function that calculates the Euclidean distance between Point A (x1, y1) and Point B (x2, y2).
+[ ] Create a mock loop that generates random X/Y coordinates for a "thumb" and "index finger".
+[ ] Write a logic block: If distance < 20 pixels for 3 consecutive frames, print "CLICK DETECTED".
