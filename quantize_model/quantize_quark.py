@@ -150,6 +150,10 @@ def main(args: Namespace) -> None:
         "/model.22/Div_1",
         "/model.22/Concat", "/model.22/Concat_1", "/model.22/Concat_2", "/model.22/Concat_3", "/model.22/Concat_4", "/model.22/Concat_5",
         "/model.22/Sigmoid", "/model.22/Sigmoid_1",
+        # Keypoint heads (sensitive regression layers)
+        "/model.22/cv4.0/cv4.0.2/Conv",
+        "/model.22/cv4.1/cv4.1.2/Conv",
+        "/model.22/cv4.2/cv4.2.2/Conv",
     ]
     model_input_name = get_model_input_name(args.input_model_path)
     calib_datareader = ImageDataReader(args.calib_data_path, model_input_name)

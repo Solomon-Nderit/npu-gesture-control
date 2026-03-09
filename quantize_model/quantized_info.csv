@@ -1,12 +1,12 @@
-../yolo_models/hand-trained.onnx quantization quantization info,2026-03-04 17:15:44
+../yolo_models/hand-trained.onnx quantization quantization info,2026-03-05 18:15:31
 quantization stage,time consumed(s),sub stage,time consumed(s)
-pre process,1.36
-,,calibration: collect data (onnx inference + numpy statistics),13.58
-,,calibration: compute data,45.43
-calibration (collect data + compute data),59.41
-static quantization,9.02
+pre process,1.18
+,,calibration: collect data (onnx inference + numpy statistics),21.70
+,,calibration: compute data,39.37
+calibration (collect data + compute data),61.46
+static quantization,9.13
 post process(including finetuning),0.00
-e2e,70.96941649999644
+e2e,72.7348490000004
 
 Node Name,Op Type,Activation,Weights,Bias
 /model.0/conv/Conv,Conv,UINT8,INT8,INT8
@@ -130,12 +130,11 @@ Node Name,Op Type,Activation,Weights,Bias
 /model.18/cv1/act/Mul,Mul,UINT8,,
 /model.22/cv2.0/cv2.0.2/Conv,Conv,UINT8,INT8,INT8
 /model.22/cv3.0/cv3.0.2/Conv,Conv,UINT8,INT8,INT8
-/model.22/cv4.0/cv4.0.2/Conv,Conv,UINT8,INT8,INT8
+/model.22/cv4.0/cv4.0.2/Conv,Conv,UINT8,,
 /model.18/Split_output_0_0,Slice,UINT8,,
 /model.18/Split_output_1_1,Slice,UINT8,,
 /model.22/Reshape,Reshape,UINT8,,
 /model.22/Reshape_3,Reshape,UINT8,,
-/model.22/Reshape_6,Reshape,UINT8,,
 /model.18/m.0/cv1/conv/Conv,Conv,UINT8,INT8,INT8
 /model.18/m.0/cv1/act/Mul,Mul,UINT8,,
 /model.18/m.0/cv2/conv/Conv,Conv,UINT8,INT8,INT8
@@ -162,12 +161,11 @@ Node Name,Op Type,Activation,Weights,Bias
 /model.21/cv1/act/Mul,Mul,UINT8,,
 /model.22/cv2.1/cv2.1.2/Conv,Conv,UINT8,INT8,INT8
 /model.22/cv3.1/cv3.1.2/Conv,Conv,UINT8,INT8,INT8
-/model.22/cv4.1/cv4.1.2/Conv,Conv,UINT8,INT8,INT8
+/model.22/cv4.1/cv4.1.2/Conv,Conv,UINT8,,
 /model.21/Split_output_0_0,Slice,UINT8,,
 /model.21/Split_output_1_1,Slice,UINT8,,
 /model.22/Reshape_1,Reshape,UINT8,,
 /model.22/Reshape_4,Reshape,UINT8,,
-/model.22/Reshape_7,Reshape,UINT8,,
 /model.21/m.0/cv1/conv/Conv,Conv,UINT8,INT8,INT8
 /model.21/m.0/cv1/act/Mul,Mul,UINT8,,
 /model.21/m.0/cv2/conv/Conv,Conv,UINT8,INT8,INT8
@@ -189,12 +187,10 @@ Node Name,Op Type,Activation,Weights,Bias
 /model.22/cv4.2/cv4.2.1/act/Mul,Mul,UINT8,,
 /model.22/cv2.2/cv2.2.2/Conv,Conv,UINT8,INT8,INT8
 /model.22/cv3.2/cv3.2.2/Conv,Conv,UINT8,INT8,INT8
-/model.22/cv4.2/cv4.2.2/Conv,Conv,UINT8,INT8,INT8
+/model.22/cv4.2/cv4.2.2/Conv,Conv,UINT8,,
 /model.22/Reshape_2,Reshape,UINT8,,
 /model.22/Reshape_5,Reshape,UINT8,,
-/model.22/Reshape_8,Reshape,UINT8,,
 /model.22/Concat_1,Concat,UINT8,,
-/model.22/Concat_2,Concat,UINT8,,
 /model.0/act/Sigmoid,HardSigmoid,UINT8,,
 /model.1/act/Sigmoid,HardSigmoid,UINT8,,
 /model.2/cv1/act/Sigmoid,HardSigmoid,UINT8,,
@@ -260,13 +256,13 @@ Node Name,Op Type,Activation,Weights,Bias
 /model.22/cv4.2/cv4.2.1/act/Sigmoid,HardSigmoid,UINT8,,
 
 Op Type,Activation,Weights,Bias
-Conv,UINT8(72),INT8(72),INT8(72)
+Conv,UINT8(72),INT8(69),INT8(69)
 Mul,UINT8(63),,
 Slice,UINT8(16),,
 Add,UINT8(6),,
-Concat,UINT8(15),,
+Concat,UINT8(14),,
 MaxPool,UINT8(3),,
 Resize,UINT8(2),,
-Reshape,UINT8(9),,
+Reshape,UINT8(6),,
 HardSigmoid,UINT8(63),,
 
